@@ -1,7 +1,9 @@
 #!/usr/env/python
 import json
 import logging
+import os
 import serial
+import sys
 import urllib2
 import uuid
 from multiprocessing import Process, Queue
@@ -59,21 +61,28 @@ class ServerConnector(object):
 class BikeConnector(object):
     def __init__(self, queue):
         self.queue = queue
-        self.ser = serial.Serial('/dev/ttyUSB0')
+        # self.ser = serial.Serial('/dev/tty0')
+        self.ser = os.fdopen(os.pipe()[0], 'r', 0)
 
     def poll_bike(self):
-        s = self.ser.read(16)
-        s = s[:-2]
-        self.queue.put([2,s])
+        print "BikeConnector started"
+        while True:
+            bike_id = self.ser.read(16)
+            bike_id = bike_id.strip()
+            print "read bike_id %s" % bike_id
+            self.queue.put((2,bike_id))
 
 
 class CardConnector(object):
     def __init__(self, queue):
         self.queue = queue
+        self.stream = os.fdopen(0, 'r', 0)
 
     def poll_card(self):
+        print "CardConnector started"
         while True:
-            card_id = raw_input('> ')
+            card_id = self.stream.read(6)
+            print "read card_id %s" % card_id
             self.queue.put((1, card_id))
 
 
@@ -83,13 +92,14 @@ class Dock(object):
         self.bike_id = bike_id
         self.queue = Queue()
         self.card_connector = CardConnector(self.queue)
-        # create bike connector
+        self.bike_connector = BikeConnector(self.queue)
 
     def start(self):
         card_proc = Process(target=self.card_connector.poll_card)
-        # bike proc
+        bike_proc = Process(target=self.bike_connector.poll_bike)
 
         card_proc.start()
+        bike_proc.start()
 
         while True:
             sender, data = self.queue.get()
@@ -108,7 +118,16 @@ class Dock(object):
 
             elif sender == 2:
                 # Message from BikeConnector
-                pass
+                if self.bike_id is None:
+                    if self.server.check_in(data):
+                        # successful check in
+                        self.bike_id = data
+                    else:
+                        # Display error to user
+                        pass
+                else:
+                    # Display error to user
+                    pass
 
 
 def main():
