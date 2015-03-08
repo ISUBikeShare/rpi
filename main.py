@@ -2,6 +2,7 @@
 import json
 import logging
 import urllib2
+import uuid
 
 
 class ServerConnector(object):
@@ -54,9 +55,8 @@ class ServerConnector(object):
 
 
 class BikeConnector(object):
-    def __init__(self, server, bike_id=None):
-        self.server = server
-        self.bike_id = bike_id
+    def __init__(self, queue):
+        self.queue = queue
 
     def poll_bike(self):
         """
@@ -66,19 +66,34 @@ class BikeConnector(object):
 
 
 class CardConnector(object):
-    def __init__(self, server):
+    def __init__(self, queue):
+        self.queue = queue
+
+    def poll_card(self):
+        while True:
+            card_id = raw_input('> ')
+            self.queue.put([1, card_id])
+
+
+class Dock(object):
+    def __init__(self, server, bike_connector):
         self.server = server
+        self.bike = bike_connector
 
     def poll_card(self):
         """
         Poll STDIN for card read signals.
         """
-        pass
-
-class DebugServer(object):
-    def __init__(self):
-        pass
-
+        while True:
+            card_id = raw_input('> ')
+            success = self.server.check_out(self.bike.id, card_id)
+            if success:
+                # Release lock
+                print("success")
+            else:
+                # Invalid request, error user
+                print("failure")
+ 
 
 def main():
     """
@@ -86,8 +101,9 @@ def main():
     """
     dock_id = initialize_dock()
     server_connector = ServerConnector(dock_id)
-    bike_connector = BikeConnector()
-    card_connector = CardConnector()
+    bike_connector = BikeConnector(bike_id=1)
+    dock = Dock(server_connector, bike_connector)
+    dock.poll_card()
 
 
 def initialize_dock():
@@ -98,7 +114,7 @@ def initialize_dock():
     @rtype: str
     """
     # register dock via MAC
-    pass
+    return uuid.getnode()
 
 
 if __name__ == '__main__':
