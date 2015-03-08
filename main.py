@@ -3,6 +3,7 @@ import json
 import logging
 import urllib2
 import uuid
+from multiprocessing import Process, Queue
 
 
 class ServerConnector(object):
@@ -72,38 +73,52 @@ class CardConnector(object):
     def poll_card(self):
         while True:
             card_id = raw_input('> ')
-            self.queue.put([1, card_id])
+            self.queue.put((1, card_id))
 
 
 class Dock(object):
-    def __init__(self, server, bike_connector):
-        self.server = server
-        self.bike = bike_connector
+    def __init__(self, dock_id, bike_id=None):
+        self.server = ServerConnector(dock_id)
+        self.bike_id = bike_id
+        self.queue = Queue()
+        self.card_connector = CardConnector(self.queue)
+        # create bike connector
 
-    def poll_card(self):
-        """
-        Poll STDIN for card read signals.
-        """
+    def start(self):
+        card_proc = Process(target=self.card_connector.poll_card)
+        # bike proc
+
+        card_proc.start()
+
         while True:
-            card_id = raw_input('> ')
-            success = self.server.check_out(self.bike.id, card_id)
-            if success:
-                # Release lock
-                print("success")
-            else:
-                # Invalid request, error user
-                print("failure")
- 
+            sender, data = self.queue.get()
+            if sender == 1:
+                # Message from CardConnector
+                if self.bike_id is not None:
+                    if self.server.check_out(self.bike_id, data):
+                        # dispatch bike to user
+                        pass
+                    else:
+                        # Display error to user
+                        pass
+                else:
+                    # Display error to user
+                    pass
+
+            elif sender == 2:
+                # Message from BikeConnector
+                pass
+
 
 def main():
     """
     Start rfid and card threads. Configure dock on first run.
     """
     dock_id = initialize_dock()
-    server_connector = ServerConnector(dock_id)
-    bike_connector = BikeConnector(bike_id=1)
-    dock = Dock(server_connector, bike_connector)
-    dock.poll_card()
+
+    # Need to initialize with current bike
+    dock = Dock(dock_id, 1)
+    dock.start()
 
 
 def initialize_dock():
