@@ -3,6 +3,7 @@ import json
 import logging
 import urllib2
 import uuid
+import serial
 
 
 class ServerConnector(object):
@@ -57,12 +58,12 @@ class ServerConnector(object):
 class BikeConnector(object):
     def __init__(self, queue):
         self.queue = queue
+        self.ser = serial.Serial('/dev/ttyUSB0')
 
     def poll_bike(self):
-        """
-        Poll RFID reader for bike check in.
-        """
-        pass
+        s = self.ser.read(16)
+        s = s[:-2]
+        self.queue.put([2,s])
 
 
 class CardConnector(object):
