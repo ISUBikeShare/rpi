@@ -1,6 +1,7 @@
 #!/usr/env/python
 import json
 import logging
+import serial
 import urllib2
 import uuid
 from multiprocessing import Process, Queue
@@ -58,12 +59,12 @@ class ServerConnector(object):
 class BikeConnector(object):
     def __init__(self, queue):
         self.queue = queue
+        self.ser = serial.Serial('/dev/ttyUSB0')
 
     def poll_bike(self):
-        """
-        Poll RFID reader for bike check in.
-        """
-        pass
+        s = self.ser.read(16)
+        s = s[:-2]
+        self.queue.put([2,s])
 
 
 class CardConnector(object):
