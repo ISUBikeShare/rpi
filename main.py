@@ -12,7 +12,7 @@ class ServerConnector(object):
         @param dock_id: the MAC address of this dock_id
         @type dock_id: str
         """
-        self.base_url = url or 'http://127.0.0.1:8080/api/%s'
+        self.base_url = url or 'https://secure-brook-1414.herokuapp.com/api/%s'
         self.dock_id = dock_id
 
     def check_out(self, bike_id, rfid_id):
@@ -21,10 +21,10 @@ class ServerConnector(object):
         """
         data = {
             'bikeID': bike_id,
-            'cardID': rfid_id
+            'cardString': rfid_id
         }
         resp = self._make_request('checkout', data)
-        if resp.status == 200:
+        if resp.code == 200:
             return True
         return False
 
@@ -37,7 +37,7 @@ class ServerConnector(object):
             'bikeID': bike_id,
         }
         resp = self._make_request('checkin', data)
-        if resp.status == 200:
+        if resp.code == 200:
             return True
         return False
 
