@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import serial
+import struct
 import sys
 import urllib2
 import uuid
@@ -61,13 +62,13 @@ class ServerConnector(object):
 class BikeConnector(object):
     def __init__(self, queue):
         self.queue = queue
-        # self.ser = serial.Serial('/dev/tty0')
-        self.ser = os.fdopen(os.pipe()[0], 'r', 0)
+        self.ser = serial.Serial('/dev/ttyUSB0')
+        # self.ser = os.fdopen(os.pipe()[0], 'r', 0)
 
     def poll_bike(self):
         print "BikeConnector started"
         while True:
-            bike_id = self.ser.read(16)
+            bike_id = self.ser.read(14)
             bike_id = bike_id.strip()
             print "read bike_id %s" % bike_id
             self.queue.put((2,bike_id))
@@ -76,14 +77,22 @@ class BikeConnector(object):
 class CardConnector(object):
     def __init__(self, queue):
         self.queue = queue
-        self.stream = os.fdopen(0, 'r', 0)
+        self.ser = open('/dev/input/event0', 'r')
 
     def poll_card(self):
+        key_data = []
         print "CardConnector started"
         while True:
-            card_id = self.stream.read(6)
-            print "read card_id %s" % card_id
-            self.queue.put((1, card_id))
+            _, __, e_type, e_code, e_value = struct.unpack('LLHHl', self.ser.read(16)) 
+            if e_type == 1 and e_value:
+                key = e_code - 1
+                if key in range(10):
+                    key_data.append(key)
+                elif key == 27:
+                    card_id = ''.join(str(x) for x in key_data)
+                    print "read card_id %s" % card_id
+                    self.queue.put((1, card_id))
+                    key_data = []
 
 
 class Dock(object):
@@ -108,13 +117,14 @@ class Dock(object):
                 if self.bike_id is not None:
                     if self.server.check_out(self.bike_id, data):
                         # dispatch bike to user
-                        pass
+                        print "bike checked out"
+                        self.bike_id = None
                     else:
                         # Display error to user
-                        pass
+                        print "bike checkout failed"
                 else:
                     # Display error to user
-                    pass
+                    print "bike is None"
 
             elif sender == 2:
                 # Message from BikeConnector
@@ -122,12 +132,13 @@ class Dock(object):
                     if self.server.check_in(data):
                         # successful check in
                         self.bike_id = data
+                        print "bike checked in"
                     else:
                         # Display error to user
-                        pass
+                        print "bike check in failed"
                 else:
                     # Display error to user
-                    pass
+                    print "bike is not None"
 
 
 def main():
@@ -137,7 +148,7 @@ def main():
     dock_id = initialize_dock()
 
     # Need to initialize with current bike
-    dock = Dock(dock_id, 1)
+    dock = Dock(dock_id, bike_id=1)
     dock.start()
 
 
