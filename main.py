@@ -92,7 +92,9 @@ class LedConnector(object):
     RED = 26;
 
     def __init__(self):
+        print "LedConnector started"
         self.queue = Queue()
+        GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(26, GPIO.OUT)
         GPIO.setup(19, GPIO.OUT)
@@ -110,11 +112,11 @@ class LedConnector(object):
             if duration < 0:
                 GPIO.output(led_id, True)
             elif duration == 0:
-                GPIO.ouput(led_id, False)
+                GPIO.output(led_id, False)
             else:
                 GPIO.output(led_id, True)
                 time.sleep(duration)
-                GPIO.ouput(led_id, False)
+                GPIO.output(led_id, False)
 
 
     def trigger(self, led_id, duration):
