@@ -5,7 +5,9 @@ import os
 import serial
 import struct
 import sys
+import time
 import urllib2
+import RPi.GPIO as GPIO
 import uuid
 from multiprocessing import Process, Queue
 
@@ -74,6 +76,47 @@ class BikeConnector(object):
             self.queue.put((2,bike_id))
 
 
+
+class LedConnector(object):
+    GREEN = 6;
+    YELLOW_1 = 13;
+    YELLOW_2 = 19;
+    RED = 26;
+
+    def __init__(self):
+        self.queue = Queue()
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(26, GPIO.OUT)
+        GPIO.setup(19, GPIO.OUT)
+        GPIO.setup(13, GPIO.OUT)
+        GPIO.setup(6, GPIO.OUT)
+        GPIO.output(6, False)
+        GPIO.output(13, False)
+        GPIO.output(19, False)
+        GPIO.output(26, False)
+
+
+    def poll_led(self):
+        while True:
+            led_id, duration = self.queue.get()
+            if duration < 0:
+                GPIO.output(led_id, True)
+            elif duration == 0:
+                GPIO.ouput(led_id, False)
+            else:
+                GPIO.output(led_id, True)
+                time.sleep(duration)
+                GPIO.ouput(led_id, False)
+
+
+    def trigger(self, led_id, duration):
+        if led_id not in [26, 19, 13, 6]:
+            return
+        self.queue.put((led_id, duration))
+                
+
+
+
 class CardConnector(object):
     def __init__(self, queue):
         self.queue = queue
@@ -102,13 +145,16 @@ class Dock(object):
         self.queue = Queue()
         self.card_connector = CardConnector(self.queue)
         self.bike_connector = BikeConnector(self.queue)
+        self.led_connector = LedConnector()
 
     def start(self):
         card_proc = Process(target=self.card_connector.poll_card)
         bike_proc = Process(target=self.bike_connector.poll_bike)
+        led_proc = Process(target=self.led_connector.poll_led)
 
         card_proc.start()
         bike_proc.start()
+        led_proc.start()
 
         while True:
             sender, data = self.queue.get()
@@ -118,13 +164,16 @@ class Dock(object):
                     if self.server.check_out(self.bike_id, data):
                         # dispatch bike to user
                         print "bike checked out"
+                        self.led_connector.trigger(LedConnector.GREEN, 4)
                         self.bike_id = None
                     else:
                         # Display error to user
                         print "bike checkout failed"
+                        self.led_connector.trigger(LedConnector.RED, 4)
                 else:
                     # Display error to user
                     print "bike is None"
+                    self.led_connector.trigger(LedConnector.YELLOW_1, 4)
 
             elif sender == 2:
                 # Message from BikeConnector
@@ -133,12 +182,15 @@ class Dock(object):
                         # successful check in
                         self.bike_id = data
                         print "bike checked in"
+                        self.led_connector.trigger(LedConnector.GREEN, 4)
                     else:
                         # Display error to user
                         print "bike check in failed"
+                        self.led_connector.trigger(LedConnector.RED, 4)
                 else:
                     # Display error to user
                     print "bike is not None"
+                    self.led_connector.trigger(LedConnector.YELLOW_1, 4)
 
 
 def main():
