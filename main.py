@@ -29,7 +29,11 @@ class ServerConnector(object):
             'bikeID': bike_id,
             'cardString': rfid_id
         }
-        resp = self._make_request('checkout', data)
+        try:
+            resp = self._make_request('checkout', data)
+        except Exception as e:
+            return False
+
         if resp.code == 200:
             return True
         return False
@@ -42,7 +46,11 @@ class ServerConnector(object):
         data = {
             'bikeID': bike_id,
         }
-        resp = self._make_request('checkin', data)
+        try:
+            resp = self._make_request('checkin', data)
+        except Exception as e:
+            return False
+
         if resp.code == 200:
             return True
         return False
@@ -129,9 +137,9 @@ class Dock(object):
             elif sender == 2:
                 # Message from BikeConnector
                 if self.bike_id is None:
-                    if self.server.check_in(data):
+                    if self.server.check_in(1):
                         # successful check in
-                        self.bike_id = data
+                        self.bike_id = 1
                         print "bike checked in"
                     else:
                         # Display error to user
