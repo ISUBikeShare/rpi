@@ -126,7 +126,7 @@ class Led(object):
             if count == 0:
                 GPIO.output(self.gpio_id, False)
             # otherwise turn it on
-            else
+            else:
                 GPIO.output(self.gpio_id, True)
             # sleep for step seconds
             time.sleep(Led.STEP)
@@ -182,8 +182,9 @@ class LedConnector(object):
         @param duration: the integer duration in seconds to trigger the LED for
         @type duration: int
         """
-        for id, led in self.leds if id == led_id:
-            led.queue.put(duration)
+        for id, led in self.leds:
+            if id == led_id:
+                led.queue.put(duration)
             
     def reset(self):
         """ Reset all LEDs to off """
