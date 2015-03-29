@@ -10,6 +10,7 @@ import urllib2
 import RPi.GPIO as GPIO
 import uuid
 from multiprocessing import Process, Queue
+from Queue import Empty
 
 # DEBUG constant for verbose output
 debug = True
@@ -113,17 +114,18 @@ class Led(object):
             # every step, process all new durations
             while True:
                 try:
-                    duration = queue.get_nowait()
-                    if duration > count or duration <= 0:
-                        count = duration
-                except EmptyException:
-                    break;
+                    duration = self.queue.get_nowait()
+                    self.count = duration
+                    if debug:
+			print "LED %d duration set to %d" % (self.gpio_id, self.count) 
+                except Empty:
+                    break
         
             # if there is a positive duration, decrement the count by the step
-            if count > 0:
-                count -= Led.STEP
+            if self.count > 0:
+                self.count -= Led.STEP
             # if the count is 0, turn off the led
-            if count == 0:
+            if self.count == 0:
                 GPIO.output(self.gpio_id, False)
             # otherwise turn it on
             else:
@@ -149,10 +151,10 @@ class LedConnector(object):
         GPIO.setmode(GPIO.BCM)
         # add the leds
         self.leds = []
-        self.leds.append((self.GREEN, Led(self.GREEN)))
-        self.leds.append((self.YELLOW_1, Led(self.YELLOW_1)))
-        self.leds.append((self.YELLOW_2, Led(self.YELLOW_2)))
-        self.leds.append((self.RED, Led(self.RED)))
+        self.leds.append((LedConnector.GREEN, Led(LedConnector.GREEN)))
+        self.leds.append((LedConnector.YELLOW_1, Led(LedConnector.YELLOW_1)))
+        self.leds.append((LedConnector.YELLOW_2, Led(LedConnector.YELLOW_2)))
+        self.leds.append((LedConnector.RED, Led(LedConnector.RED)))
         # run the start-up display
         if not debug:
             self.startup_process = Process(target=self.startup)
@@ -162,13 +164,13 @@ class LedConnector(object):
         """ 
         Startup animation 
         """
-        self.trigger(self.GREEN, 4)
+        self.trigger(LedConnector.GREEN, 4)
         time.sleep(1)
-        self.trigger(self.YELLOW_1, 3)
+        self.trigger(LedConnector.YELLOW_1, 3)
         time.sleep(1)
-        self.trigger(self.YELLOW_2, 2)
+        self.trigger(LedConnector.YELLOW_2, 2)
         time.sleep(1)
-        self.trigger(self.RED, 1)
+        self.trigger(LedConnector.RED, 1)
 
     def trigger(self, led_id, duration):
         """
@@ -279,6 +281,7 @@ class Dock(object):
         bike_proc.start()
 
         # poll events queue and handle events
+	time.sleep(1)
         print "Dock Started! Now polling for events..."
         while True:
             sender, data = self.queue.get()
@@ -323,7 +326,7 @@ def main():
     """
     print "=== CyShare Dock Firmware ==="
     
-    dock = Dock(dock_id)
+    dock = Dock()
     dock.start()
 
 
