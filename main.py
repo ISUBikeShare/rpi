@@ -86,6 +86,28 @@ class BikeConnector(object):
 
 
 
+
+class LockConnector(object):
+
+    def __init__(self):
+        print "LedConnector started"
+        self.queue = Queue()
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(8, GPIO.OUT)
+        GPIO.output(8, False)
+
+
+
+    def trigger(self):
+        GPIO.output(8, True)
+        time.sleep(100);
+        GPIO.output(8, False)
+
+
+
+
+
 class LedConnector(object):
     GREEN = 6;
     YELLOW_1 = 13;
@@ -157,6 +179,7 @@ class Dock(object):
         self.card_connector = CardConnector(self.queue)
         self.bike_connector = BikeConnector(self.queue)
         self.led_connector = LedConnector()
+        self.lock_connector = LockConnector()
 
     def start(self):
         card_proc = Process(target=self.card_connector.poll_card)
@@ -175,6 +198,7 @@ class Dock(object):
                     if self.server.check_out(self.bike_id, data):
                         # dispatch bike to user
                         print "bike checked out"
+			self.lock_connector.trigger()
                         self.led_connector.trigger(LedConnector.GREEN, 4)
                         self.bike_id = None
                     else:
