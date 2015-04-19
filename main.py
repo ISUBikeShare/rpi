@@ -90,7 +90,7 @@ class BikeConnector(object):
 class LockConnector(object):
 
     def __init__(self):
-        print "LedConnector started"
+        print "Lock started"
         self.queue = Queue()
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
