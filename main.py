@@ -211,7 +211,7 @@ def main():
     dock_id = initialize_dock()
 
     # Need to initialize with current bike
-    dock = Dock(dock_id, bike_id=1)
+    dock = Dock(dock_id, bike_id="6A004A1589BC")
     dock.start()
 
 
