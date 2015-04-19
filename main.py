@@ -197,8 +197,8 @@ class Dock(object):
                 if self.bike_id is not None:
                     if self.server.check_out(self.bike_id, data):
                         # dispatch bike to user
-                        print "bike checked out"
-			self.lock_connector.trigger()
+                        print "bike checked out", self.bike_id
+			            self.lock_connector.trigger()
                         self.led_connector.trigger(LedConnector.GREEN, 4)
                         self.bike_id = None
                     else:
@@ -213,10 +213,10 @@ class Dock(object):
             elif sender == 2:
                 # Message from BikeConnector
                 if self.bike_id is None:
-                    if self.server.check_in(1):
+                    if self.server.check_in(data):
                         # successful check in
-                        self.bike_id = 1
-                        print "bike checked in"
+                        self.bike_id = data
+                        print "bike checked in", self.bike_id
                         self.led_connector.trigger(LedConnector.GREEN, 4)
                     else:
                         # Display error to user
@@ -235,7 +235,7 @@ def main():
     dock_id = initialize_dock()
 
     # Need to initialize with current bike
-    dock = Dock(dock_id, bike_id=1)
+    dock = Dock(dock_id, bike_id="6A004A1589BC")
     dock.start()
 
 
