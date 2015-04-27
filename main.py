@@ -60,6 +60,22 @@ class ServerConnector(object):
             return True
         return False
 
+    def register_dock(self, dock_id):
+        """
+        Send request signifying bike check in.
+        """
+        data = {
+            'dockID': dock_id,
+        }
+        try:
+            resp = self._make_request('dock', data)
+        except Exception as e:
+            return False
+
+        if resp.code == 200 or resp.code == 204:
+            return True
+        return False
+
     def _make_request(self, endpoint, data):
         """
         Send data to server and return response in json
@@ -109,43 +125,57 @@ class LockConnector(object):
 
 
 class LedConnector(object):
-    GREEN = 6;
-    YELLOW_1 = 13;
-    YELLOW_2 = 19;
-    RED = 26;
+    RED = 13;
+    GREEN = 19;
+    BLUE = 26;
+    WHITE = 0;
 
     def __init__(self):
         print "LedConnector started"
         self.queue = Queue()
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(26, GPIO.OUT)
-        GPIO.setup(19, GPIO.OUT)
-        GPIO.setup(13, GPIO.OUT)
-        GPIO.setup(6, GPIO.OUT)
-        GPIO.output(6, False)
-        GPIO.output(13, False)
-        GPIO.output(19, False)
-        GPIO.output(26, False)
+        GPIO.setup(self.RED, GPIO.OUT)
+        GPIO.setup(self.BLUE, GPIO.OUT)
+        GPIO.setup(self.GREEN, GPIO.OUT)
+        GPIO.output(self.RED, False)
+        GPIO.output(self.BLUE, False)
+        GPIO.output(self.GREEN, False)
 
 
     def poll_led(self):
         while True:
-            led_id, duration = self.queue.get()
-            if duration < 0:
-                GPIO.output(led_id, True)
-            elif duration == 0:
-                GPIO.output(led_id, False)
+            led_id, status = self.queue.get()
+            self.set_color(led_id)
+            print "setting color to ", led_id
+            time.sleep(3)
+            if status:
+                self.set_color(self.WHITE)
+                print "setting color to white"
             else:
-                GPIO.output(led_id, True)
-                time.sleep(duration)
-                GPIO.output(led_id, False)
+                self.set_color(self.BLUE)
+                print "setting color to blue"
 
-    def trigger(self, led_id, duration):
-        if led_id not in [26, 19, 13, 6]:
-            return
-        self.queue.put((led_id, duration))
+    def trigger(self, led_id, status):
+        self.queue.put((led_id, status))
 
+    def set_color(self, color):
+        if color == self.RED:
+            GPIO.output(self.BLUE, False)
+            GPIO.output(self.GREEN, False)
+            GPIO.output(self.RED, True)
+        elif color == self.BLUE:
+            GPIO.output(self.BLUE, True)
+            GPIO.output(self.GREEN, False)
+            GPIO.output(self.RED, False)
+        elif color == self.GREEN:
+            GPIO.output(self.BLUE, False)
+            GPIO.output(self.GREEN, True)
+            GPIO.output(self.RED, False)
+        else:
+            GPIO.output(self.BLUE, True)
+            GPIO.output(self.GREEN, True)
+            GPIO.output(self.RED, True)
 
 class CardConnector(object):
     def __init__(self, queue):
@@ -176,12 +206,21 @@ class Dock(object):
                 self.bike_id = json_data["bike_id"]
         else:
             self.bike_id = None
+
+
         self.server = ServerConnector(dock_id)
+        if not self.server.register_dock(dock_id):
+            print "dock not registered"
         self.queue = Queue()
         self.card_connector = CardConnector(self.queue)
         self.bike_connector = BikeConnector(self.queue)
         self.led_connector = LedConnector()
         self.lock_connector = LockConnector()
+
+        if self.bike_id:
+            self.led_connector.set_color(self.led_connector.WHITE)
+        else:
+            self.led_connector.set_color(self.led_connector.BLUE)
 
     def start(self):
         card_proc = Process(target=self.card_connector.poll_card)
@@ -199,21 +238,21 @@ class Dock(object):
                 if self.bike_id is not None:
                     if self.server.check_out(self.bike_id, data):
                         # dispatch bike to user
-                        self.led_connector.trigger(LedConnector.GREEN, 4)
-                        self.lock_connector.trigger()
                         self.bike_id = None
+                        self.led_connector.trigger(LedConnector.GREEN, self.bike_id)
+                        self.lock_connector.trigger()
                         print "bike checked out", self.bike_id
                         json_data = {'bike_id': self.bike_id}
                         with open('dock_state', 'w') as outfile:
                             outfile.write(json.dumps(json_data))
                     else:
                         # Display error to user
-                        self.led_connector.trigger(LedConnector.RED, 4)
+                        self.led_connector.trigger(LedConnector.RED, self.bike_id)
                         print "bike checkout failed"
                 else:
                     # Display error to user
                     print "bike is None"
-                    self.led_connector.trigger(LedConnector.YELLOW_1, 4)
+                    self.led_connector.trigger(LedConnector.RED, self.bike_id)
 
             elif sender == 2:
                 # Message from BikeConnector
@@ -221,18 +260,18 @@ class Dock(object):
                     if self.server.check_in(data):
                         # successful check in
                         self.bike_id = data
-                        self.led_connector.trigger(LedConnector.GREEN, 4)
+                        self.led_connector.trigger(LedConnector.GREEN, self.bike_id)
                         print "bike checked in", self.bike_id
                         json_data = {'bike_id': self.bike_id}
                         with open('dock_state', 'w') as outfile:
                             outfile.write(json.dumps(json_data))
                     else:
                         # Display error to user
-                        self.led_connector.trigger(LedConnector.RED, 4)
+                        self.led_connector.trigger(LedConnector.RED, self.bike_id)
                         print "bike check in failed"
                 else:
                     # Display error to user
-                    self.led_connector.trigger(LedConnector.YELLOW_1, 4)
+                    self.led_connector.trigger(LedConnector.RED, self.bike_id)
                     print "bike is not None"
 
 
