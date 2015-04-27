@@ -6,10 +6,12 @@ import serial
 import string
 import struct
 import sys
+import json
 import time
 import urllib2
 import RPi.GPIO as GPIO
 import uuid
+import os.path
 from multiprocessing import Process, Queue
 
 
@@ -67,7 +69,10 @@ class ServerConnector(object):
         headers = {'Content-Type': 'application/json'}
         req = urllib2.Request(url, data=json.dumps(data), headers=headers)
         print('Opening URL: ' + url)
-        return urllib2.urlopen(req)
+        print data
+        ret = urllib2.urlopen(req)
+        print 'returned'
+        return ret
 
 
 class BikeConnector(object):
@@ -88,24 +93,19 @@ class BikeConnector(object):
 
 
 class LockConnector(object):
-
     def __init__(self):
-        print "LedConnector started"
+        print "LockConnector started"
+        self.pin_num = 14
         self.queue = Queue()
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(8, GPIO.OUT)
-        GPIO.output(8, False)
-
-
+        GPIO.setup(self.pin_num, GPIO.OUT)
+        GPIO.output(self.pin_num, False)
 
     def trigger(self):
-        GPIO.output(8, True)
-        time.sleep(100);
-        GPIO.output(8, False)
-
-
-
+        GPIO.output(self.pin_num, True)
+        time.sleep(1);
+        GPIO.output(self.pin_num, False)
 
 
 class LedConnector(object):
@@ -141,13 +141,10 @@ class LedConnector(object):
                 time.sleep(duration)
                 GPIO.output(led_id, False)
 
-
     def trigger(self, led_id, duration):
         if led_id not in [26, 19, 13, 6]:
             return
         self.queue.put((led_id, duration))
-                
-
 
 
 class CardConnector(object):
@@ -173,8 +170,13 @@ class CardConnector(object):
 
 class Dock(object):
     def __init__(self, dock_id, bike_id=None):
+        if os.path.isfile('./dock_state'):
+            with open('dock_state') as data_file:    
+                json_data = json.load(data_file)
+                self.bike_id = json_data["bike_id"]
+        else:
+            self.bike_id = None
         self.server = ServerConnector(dock_id)
-        self.bike_id = bike_id
         self.queue = Queue()
         self.card_connector = CardConnector(self.queue)
         self.bike_connector = BikeConnector(self.queue)
@@ -197,14 +199,17 @@ class Dock(object):
                 if self.bike_id is not None:
                     if self.server.check_out(self.bike_id, data):
                         # dispatch bike to user
-                        print "bike checked out", self.bike_id
-			            self.lock_connector.trigger()
                         self.led_connector.trigger(LedConnector.GREEN, 4)
+                        self.lock_connector.trigger()
                         self.bike_id = None
+                        print "bike checked out", self.bike_id
+                        json_data = {'bike_id': self.bike_id}
+                        with open('dock_state', 'w') as outfile:
+                            outfile.write(json.dumps(json_data))
                     else:
                         # Display error to user
-                        print "bike checkout failed"
                         self.led_connector.trigger(LedConnector.RED, 4)
+                        print "bike checkout failed"
                 else:
                     # Display error to user
                     print "bike is None"
@@ -216,16 +221,19 @@ class Dock(object):
                     if self.server.check_in(data):
                         # successful check in
                         self.bike_id = data
-                        print "bike checked in", self.bike_id
                         self.led_connector.trigger(LedConnector.GREEN, 4)
+                        print "bike checked in", self.bike_id
+                        json_data = {'bike_id': self.bike_id}
+                        with open('dock_state', 'w') as outfile:
+                            outfile.write(json.dumps(json_data))
                     else:
                         # Display error to user
-                        print "bike check in failed"
                         self.led_connector.trigger(LedConnector.RED, 4)
+                        print "bike check in failed"
                 else:
                     # Display error to user
-                    print "bike is not None"
                     self.led_connector.trigger(LedConnector.YELLOW_1, 4)
+                    print "bike is not None"
 
 
 def main():
