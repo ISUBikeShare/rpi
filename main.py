@@ -111,7 +111,7 @@ class BikeConnector(object):
 class LockConnector(object):
     def __init__(self):
         print "LockConnector started"
-        self.pin_num = 14
+        self.pin_num = 21
         self.queue = Queue()
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
